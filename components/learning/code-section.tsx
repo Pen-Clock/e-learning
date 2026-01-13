@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Play, Check, X, Loader2 } from "lucide-react";
@@ -16,6 +16,8 @@ interface TestCase {
 }
 
 interface CodeSectionProps {
+  pageId: string;
+  sectionId: string;
   content: {
     title: string;
     description: string;
@@ -23,9 +25,22 @@ interface CodeSectionProps {
     language: string;
     testCases: TestCase[];
   };
+  savedSubmission?: {
+    code: string;
+    language: string;
+    allPassed: boolean;
+    results: Array<{ passed: boolean; output: string; expected: string }>;
+    output?: string;
+    submittedAt: string;
+  };
 }
 
-export function CodeSection({ content }: CodeSectionProps) {
+export function CodeSection({
+  pageId,
+  sectionId,
+  content,
+  savedSubmission,
+}: CodeSectionProps) {
   const [code, setCode] = useState(content.starterCode);
   const [output, setOutput] = useState<string>("");
   const [testResults, setTestResults] = useState<
@@ -33,6 +48,49 @@ export function CodeSection({ content }: CodeSectionProps) {
   >([]);
   const [running, setRunning] = useState(false);
   const [allPassed, setAllPassed] = useState(false);
+
+  useEffect(() => {
+    if (!savedSubmission) return;
+
+    if (typeof savedSubmission.code === "string" && savedSubmission.code.length > 0) {
+      setCode(savedSubmission.code);
+    }
+
+    if (Array.isArray(savedSubmission.results)) {
+      setTestResults(savedSubmission.results);
+    }
+
+    if (typeof savedSubmission.output === "string") {
+      setOutput(savedSubmission.output);
+    }
+
+    setAllPassed(!!savedSubmission.allPassed);
+  }, [savedSubmission]);
+
+  const saveSubmission = async (payload: {
+    code: string;
+    language: string;
+    results: Array<{ passed: boolean; output: string; expected: string }>;
+    allPassed: boolean;
+    output?: string;
+  }) => {
+    try {
+      await fetch("/api/progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pageId,
+          action: "code",
+          data: {
+            sectionId,
+            ...payload,
+          },
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to save code submission:", err);
+    }
+  };
 
   const handleRunCode = async () => {
     setRunning(true);
@@ -54,15 +112,42 @@ export function CodeSection({ content }: CodeSectionProps) {
       const data = await response.json();
 
       if (data.error) {
-        setOutput(`Error: ${data.error}`);
+        const errorOutput = `Error: ${data.error}`;
+        setOutput(errorOutput);
+
+        await saveSubmission({
+          code,
+          language: content.language,
+          results: [],
+          allPassed: false,
+          output: errorOutput,
+        });
+
         return;
       }
 
       setTestResults(data.results);
       setOutput(data.output);
       setAllPassed(data.allPassed);
+
+      await saveSubmission({
+        code,
+        language: content.language,
+        results: data.results,
+        allPassed: data.allPassed,
+        output: data.output,
+      });
     } catch (err) {
-      setOutput("Failed to execute code. Please try again.");
+      const errorOutput = "Failed to execute code. Please try again.";
+      setOutput(errorOutput);
+
+      await saveSubmission({
+        code,
+        language: content.language,
+        results: [],
+        allPassed: false,
+        output: errorOutput,
+      });
     } finally {
       setRunning(false);
     }
@@ -126,6 +211,8 @@ export function CodeSection({ content }: CodeSectionProps) {
             {content.testCases.map((testCase, index) => {
               if (testCase.hidden) return null;
               const result = testResults[index];
+
+              if (!result) return null;
 
               return (
                 <div

@@ -6,8 +6,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "LearnHub - Master New Skills",
-  description: "Interactive e-learning platform",
+  title: "Luckily",
+  description: "",
 };
 
 export default function RootLayout({

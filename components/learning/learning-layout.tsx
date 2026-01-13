@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import {
   ChevronLeft,
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { TextSection } from "./text-section";
 import { MCQSection } from "./mcq-section";
+import { ImageSection } from "./image-section";
 
 const CodeSection = dynamic(
   () => import("./code-section").then((m) => m.CodeSection),
@@ -36,7 +37,7 @@ interface Page {
 
 interface Section {
   id: string;
-  type: "text" | "mcq" | "code";
+  type: "text" | "mcq" | "code" | "image";
   orderIndex: number;
   content: any;
 }
@@ -50,6 +51,25 @@ interface Course {
   title: string;
 }
 
+type ProgressDTO = {
+  completedAt: string | null;
+  mcqAnswers: Record<
+    string,
+    { selectedOption: string; isCorrect: boolean; answeredAt: string }
+  >;
+  codeSubmissions: Record<
+    string,
+    {
+      code: string;
+      language: string;
+      allPassed: boolean;
+      results: Array<{ passed: boolean; output: string; expected: string }>;
+      output?: string;
+      submittedAt: string;
+    }
+  >;
+} | null;
+
 interface LearningLayoutProps {
   course: Course;
   pages: Page[];
@@ -59,6 +79,7 @@ interface LearningLayoutProps {
   courseId: string;
   userId: string;
   isCompleted: boolean;
+  progress: ProgressDTO;
 }
 
 export function LearningLayout({
@@ -70,10 +91,14 @@ export function LearningLayout({
   courseId,
   userId,
   isCompleted,
+  progress,
 }: LearningLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [completed, setCompleted] = useState(isCompleted);
   const router = useRouter();
+
+  const mcqAnswers = progress?.mcqAnswers ?? {};
+  const codeSubmissions = progress?.codeSubmissions ?? {};
 
   const handleComplete = async () => {
     try {
@@ -93,7 +118,6 @@ export function LearningLayout({
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Sidebar */}
       <aside
         className={`${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -107,15 +131,15 @@ export function LearningLayout({
             <BookOpen className="h-4 w-4" />
             <span className="truncate">{course.title}</span>
           </Link>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden"
-          >
+          <button onClick={() => setSidebarOpen(false)} className="lg:hidden">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <nav className="overflow-y-auto p-4" style={{ height: "calc(100vh - 4rem)" }}>
+        <nav
+          className="overflow-y-auto p-4"
+          style={{ height: "calc(100vh - 4rem)" }}
+        >
           <div className="space-y-1">
             {pages.map((page, index) => (
               <Link
@@ -144,15 +168,11 @@ export function LearningLayout({
         </nav>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 lg:ml-80">
         <header className="sticky top-0 z-40 border-b border-border bg-background">
           <div className="flex h-16 items-center justify-between px-6">
             <div className="flex items-center gap-4">
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="lg:hidden"
-              >
+              <button onClick={() => setSidebarOpen(true)} className="lg:hidden">
                 <Menu className="h-5 w-5" />
               </button>
               <h1 className="text-lg font-semibold">{currentPage.title}</h1>
@@ -174,35 +194,49 @@ export function LearningLayout({
           </div>
         </header>
 
-        <div className="overflow-y-auto" style={{ height: "calc(100vh - 8rem)" }}>
+        <div
+          className="overflow-y-auto"
+          style={{ height: "calc(100vh - 8rem)" }}
+        >
           <div className="mx-auto max-w-4xl px-6 py-8">
             <div className="space-y-8">
               {currentPage.sections.map((section) => {
                 if (section.type === "text") {
                   return (
-                    <TextSection
-                      key={section.id}
-                      content={section.content}
-                    />
+                    <TextSection key={section.id} content={section.content} />
                   );
                 }
+
+                if (section.type === "image") {
+                  return (
+                    <ImageSection key={section.id} content={section.content} />
+                  );
+                }
+
                 if (section.type === "mcq") {
                   return (
                     <MCQSection
                       key={section.id}
+                      sectionId={section.id}
                       content={section.content}
                       pageId={currentPage.id}
+                      savedAnswer={mcqAnswers[section.id]}
                     />
                   );
                 }
+
                 if (section.type === "code") {
                   return (
                     <CodeSection
                       key={section.id}
+                      sectionId={section.id}
+                      pageId={currentPage.id}
                       content={section.content}
+                      savedSubmission={codeSubmissions[section.id]}
                     />
                   );
                 }
+
                 return null;
               })}
             </div>
@@ -235,7 +269,6 @@ export function LearningLayout({
         </footer>
       </main>
 
-      {/* Overlay for mobile sidebar */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"

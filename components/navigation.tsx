@@ -10,7 +10,7 @@ export function Navigation() {
           <div className="flex items-center gap-8">
             <Link href="/" className="flex items-center gap-2">
               <BookOpen className="h-6 w-6" />
-              <span className="text-lg font-semibold">LearnHub</span>
+              <span className="text-lg font-semibold">Luckily</span>
             </Link>
             <div className="hidden md:flex md:gap-6">
               <Link

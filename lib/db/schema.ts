@@ -47,7 +47,7 @@ export const pageSections = sqliteTable("page_sections", {
   pageId: text("page_id")
     .notNull()
     .references(() => coursePages.id, { onDelete: "cascade" }),
-  type: text("type", { enum: ["text", "mcq", "code"] }).notNull(),
+  type: text("type", { enum: ["text", "mcq", "code", "image"] }).notNull(),
   orderIndex: integer("order_index").notNull(),
   content: text("content", { mode: "json" }).notNull(),
 });

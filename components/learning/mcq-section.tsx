@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, X } from "lucide-react";
 
@@ -17,12 +17,25 @@ interface MCQSectionProps {
     explanation?: string;
   };
   pageId: string;
+  sectionId: string;
+  savedAnswer?: {
+    selectedOption: string;
+    isCorrect: boolean;
+    answeredAt: string;
+  };
 }
 
-export function MCQSection({ content, pageId }: MCQSectionProps) {
+export function MCQSection({ content, pageId, sectionId, savedAnswer }: MCQSectionProps) {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+
+  useEffect(() => {
+    if (!savedAnswer) return;
+    setSelectedOption(savedAnswer.selectedOption);
+    setSubmitted(true);
+    setIsCorrect(savedAnswer.isCorrect);
+  }, [savedAnswer]);
 
   const handleSubmit = async () => {
     if (!selectedOption) return;
@@ -40,7 +53,7 @@ export function MCQSection({ content, pageId }: MCQSectionProps) {
         body: JSON.stringify({
           pageId,
           action: "mcq",
-          data: { selectedOption, isCorrect: correct },
+          data: { sectionId, selectedOption, isCorrect: correct },
         }),
       });
     } catch (err) {
@@ -73,17 +86,15 @@ export function MCQSection({ content, pageId }: MCQSectionProps) {
                 isSelected && !submitted
                   ? "border-primary bg-primary/5"
                   : showCorrect
-                  ? "border-green-500 bg-green-50"
+                  ? "border-green-200 bg-green-50"
                   : showIncorrect
-                  ? "border-red-500 bg-red-50"
+                  ? "border-red-200 bg-red-50"
                   : "border-border hover:border-primary/50"
               } ${submitted ? "cursor-not-allowed" : "cursor-pointer"}`}
             >
               <div className="flex items-center justify-between">
                 <span>{option.text}</span>
-                {showCorrect && (
-                  <Check className="h-5 w-5 text-green-600" />
-                )}
+                {showCorrect && <Check className="h-5 w-5 text-green-600" />}
                 {showIncorrect && <X className="h-5 w-5 text-red-600" />}
               </div>
             </button>
@@ -105,20 +116,14 @@ export function MCQSection({ content, pageId }: MCQSectionProps) {
             {isCorrect ? "Correct!" : "Incorrect"}
           </p>
           {content.explanation && (
-            <p className="text-sm text-foreground/80">
-              {content.explanation}
-            </p>
+            <p className="text-sm text-foreground/80">{content.explanation}</p>
           )}
         </div>
       )}
 
       <div className="mt-6 flex gap-3">
         {!submitted ? (
-          <Button
-            onClick={handleSubmit}
-            disabled={!selectedOption}
-            className="w-full"
-          >
+          <Button onClick={handleSubmit} disabled={!selectedOption} className="w-full">
             Submit Answer
           </Button>
         ) : (

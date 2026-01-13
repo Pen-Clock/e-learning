@@ -29,7 +29,6 @@ export default async function LearnPage({
 
   const pages = await getCoursePages(courseId);
   const currentPage = await getPageWithSections(pageId);
-
   if (!currentPage) notFound();
 
   const currentPageIndex = pages.findIndex((p) => p.id === pageId);
@@ -37,7 +36,21 @@ export default async function LearnPage({
   const nextPage =
     currentPageIndex < pages.length - 1 ? pages[currentPageIndex + 1] : null;
 
-  const progress = await getUserProgress(user.id, pageId);
+  const progressRow = await getUserProgress(user.id, pageId);
+
+  // Important: pass only serializable values to the client component
+  const progress = progressRow
+    ? {
+        completedAt: progressRow.completedAt
+          ? new Date(progressRow.completedAt).toISOString()
+          : null,
+        mcqAnswers: (progressRow.mcqAnswers ?? {}) as Record<string, any>,
+        codeSubmissions: (progressRow.codeSubmissions ?? {}) as Record<
+          string,
+          any
+        >,
+      }
+    : null;
 
   return (
     <LearningLayout
@@ -48,7 +61,8 @@ export default async function LearnPage({
       nextPage={nextPage}
       courseId={courseId}
       userId={user.id}
-      isCompleted={!!progress?.completedAt}
+      isCompleted={!!progressRow?.completedAt}
+      progress={progress}
     />
   );
 }

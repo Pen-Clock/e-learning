@@ -12,6 +12,7 @@ interface Course {
   id: string;
   title: string;
   description: string;
+  thumbnailUrl: string | null;
   price: number;
   accessCode: string | null;
   isPublished: boolean;
@@ -35,6 +36,7 @@ export function CourseEditor({ course, pages }: CourseEditorProps) {
   const [formData, setFormData] = useState({
     title: course.title,
     description: course.description,
+    thumbnailUrl: course.thumbnailUrl || "",
     price: course.price.toString(),
     accessCode: course.accessCode || "",
     isPublished: course.isPublished,
@@ -49,7 +51,10 @@ export function CourseEditor({ course, pages }: CourseEditorProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
-          price: parseInt(formData.price),
+          price: Number(formData.price),
+          thumbnailUrl: formData.thumbnailUrl.trim()
+            ? formData.thumbnailUrl.trim()
+            : null,
         }),
       });
       router.refresh();
@@ -84,16 +89,11 @@ export function CourseEditor({ course, pages }: CourseEditorProps) {
       </Link>
 
       <div className="mb-8">
-        <h1 className="mb-2 text-3xl font-bold tracking-tight">
-          Edit Course
-        </h1>
-        <p className="text-muted-foreground">
-          Manage course details and content
-        </p>
+        <h1 className="mb-2 text-3xl font-bold tracking-tight">Edit Course</h1>
+        <p className="text-muted-foreground">Manage course details and content</p>
       </div>
 
       <div className="space-y-8">
-        {/* Course Details */}
         <div className="rounded-lg border border-border bg-card p-6">
           <h2 className="mb-4 text-xl font-semibold">Course Details</h2>
 
@@ -121,6 +121,32 @@ export function CourseEditor({ course, pages }: CourseEditorProps) {
                 rows={4}
                 className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium">
+                Thumbnail Image URL
+              </label>
+              <Input
+                type="url"
+                value={formData.thumbnailUrl}
+                onChange={(e) =>
+                  setFormData({ ...formData, thumbnailUrl: e.target.value })
+                }
+                placeholder="https://..."
+              />
+              {formData.thumbnailUrl.trim() && (
+                <div className="mt-3 overflow-hidden rounded-md border border-border">
+                  <img
+                    src={formData.thumbnailUrl.trim()}
+                    alt="Course thumbnail preview"
+                    className="aspect-video w-full object-cover"
+                  />
+                </div>
+              )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                For now, paste a hosted image URL. (We can add uploads next.)
+              </p>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -173,7 +199,6 @@ export function CourseEditor({ course, pages }: CourseEditorProps) {
           </div>
         </div>
 
-        {/* Course Pages */}
         <div className="rounded-lg border border-border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold">Course Pages</h2>

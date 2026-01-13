@@ -11,15 +11,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { title, description, price, accessCode } = await request.json();
+    const { title, description, price, accessCode, thumbnailUrl } =
+      await request.json();
+
+    if (!title || !description) {
+      return NextResponse.json(
+        { error: "Title and description are required" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof price !== "number" || !Number.isFinite(price) || price < 0) {
+      return NextResponse.json({ error: "Invalid price" }, { status: 400 });
+    }
+
+    if (price > 0 && (!accessCode || !String(accessCode).trim())) {
+      return NextResponse.json(
+        { error: "Access code is required for premium courses" },
+        { status: 400 }
+      );
+    }
 
     const id = generateId();
+
     await db.insert(courses).values({
       id,
       title,
       description,
       price,
       accessCode: price > 0 ? accessCode : null,
+      thumbnailUrl: thumbnailUrl ? String(thumbnailUrl) : null,
       isPublished: false,
     });
 

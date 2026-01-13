@@ -59,7 +59,7 @@ export default async function CoursePage({
                 <div>
                   <h3 className="mb-1 font-semibold">You're enrolled!</h3>
                   <p className="text-sm text-muted-foreground">
-                    Continue your learning journey
+                    Continue
                   </p>
                 </div>
                 {firstPageId && (

@@ -25,8 +25,14 @@ export async function PATCH(
       );
     }
 
-    const { title, description, price, accessCode, isPublished } =
-      await request.json();
+    const {
+      title,
+      description,
+      price,
+      accessCode,
+      isPublished,
+      thumbnailUrl,
+    } = await request.json();
 
     await db
       .update(courses)
@@ -36,6 +42,7 @@ export async function PATCH(
         price,
         accessCode: price > 0 ? accessCode : null,
         isPublished,
+        thumbnailUrl: thumbnailUrl ? String(thumbnailUrl) : null,
         updatedAt: new Date(),
       })
       .where(eq(courses.id, courseId));

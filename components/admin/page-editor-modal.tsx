@@ -12,7 +12,7 @@ interface PageEditorModalProps {
   onClose: () => void;
 }
 
-type SectionType = "text" | "mcq" | "code";
+type SectionType = "text" | "mcq" | "code" | "image";
 
 interface Section {
   id?: string;
@@ -100,6 +100,13 @@ export function PageEditorModal({
           starterCode: "function solution(input) {\n  // Your code here\n}",
           language: "javascript",
           testCases: [{ input: "5", expectedOutput: "5", hidden: false }],
+        };
+
+      case "image":
+        return {
+          url: "",
+          alt: "",
+          caption: "",
         };
 
       default:
@@ -274,6 +281,13 @@ export function PageEditorModal({
               <Button
                 size="sm"
                 variant="outline"
+                onClick={() => handleAddSection("image")}
+              >
+                + Image
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
                 onClick={() => handleAddSection("mcq")}
               >
                 + MCQ
@@ -333,6 +347,51 @@ export function PageEditorModal({
                     placeholder="Enter HTML content..."
                     className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
                   />
+                )}
+
+                {section.type === "image" && (
+                  <div className="space-y-3">
+                    <Input
+                      value={section.content.url || ""}
+                      onChange={(e) =>
+                        handleUpdateSection(index, {
+                          ...section.content,
+                          url: e.target.value,
+                        })
+                      }
+                      placeholder="Image URL (https://...)"
+                    />
+                    <Input
+                      value={section.content.alt || ""}
+                      onChange={(e) =>
+                        handleUpdateSection(index, {
+                          ...section.content,
+                          alt: e.target.value,
+                        })
+                      }
+                      placeholder="Alt text"
+                    />
+                    <Input
+                      value={section.content.caption || ""}
+                      onChange={(e) =>
+                        handleUpdateSection(index, {
+                          ...section.content,
+                          caption: e.target.value,
+                        })
+                      }
+                      placeholder="Caption (optional)"
+                    />
+
+                    {section.content.url?.trim() && (
+                      <div className="overflow-hidden rounded-md border border-border">
+                        <img
+                          src={section.content.url.trim()}
+                          alt={section.content.alt || "Image preview"}
+                          className="w-full object-cover"
+                        />
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {section.type === "mcq" && (
@@ -541,7 +600,7 @@ export function PageEditorModal({
             {sections.length === 0 && (
               <div className="rounded-md border border-dashed border-border p-8 text-center">
                 <p className="text-sm text-muted-foreground">
-                  No sections yet. Add text, MCQ, or code sections above.
+                  No sections yet. Add text, image, MCQ, or code sections above.
                 </p>
               </div>
             )}
