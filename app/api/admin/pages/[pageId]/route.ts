@@ -1,4 +1,3 @@
-// app/api/admin/pages/[pageId]/route.ts
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -7,9 +6,11 @@ import { eq } from "drizzle-orm";
 import { generateId } from "@/lib/utils";
 import { getPageWithSections } from "@/lib/db/queries";
 
+type RouteContext<T> = { params: T | Promise<T> };
+
 export async function GET(
   request: Request,
-  { params }: { params: { pageId: string } }
+  context: RouteContext<{ pageId: string }>
 ) {
   try {
     const { userId } = await auth();
@@ -17,7 +18,13 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const page = await getPageWithSections(params.pageId);
+    const { pageId } = await context.params;
+
+    if (!pageId) {
+      return NextResponse.json({ error: "Missing pageId" }, { status: 400 });
+    }
+
+    const page = await getPageWithSections(pageId);
     return NextResponse.json(page);
   } catch (error) {
     console.error("Get page error:", error);
@@ -30,7 +37,7 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { pageId: string } }
+  context: RouteContext<{ pageId: string }>
 ) {
   try {
     const { userId } = await auth();
@@ -38,23 +45,22 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { pageId } = await context.params;
+
+    if (!pageId) {
+      return NextResponse.json({ error: "Missing pageId" }, { status: 400 });
+    }
+
     const { title, sections } = await request.json();
 
-    await db
-      .update(coursePages)
-      .set({ title })
-      .where(eq(coursePages.id, params.pageId));
+    await db.update(coursePages).set({ title }).where(eq(coursePages.id, pageId));
 
-    // Delete existing sections
-    await db
-      .delete(pageSections)
-      .where(eq(pageSections.pageId, params.pageId));
+    await db.delete(pageSections).where(eq(pageSections.pageId, pageId));
 
-    // Insert new sections
     for (const section of sections) {
       await db.insert(pageSections).values({
         id: section.id || generateId(),
-        pageId: params.pageId,
+        pageId,
         type: section.type,
         orderIndex: section.orderIndex,
         content: section.content,
@@ -73,7 +79,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { pageId: string } }
+  context: RouteContext<{ pageId: string }>
 ) {
   try {
     const { userId } = await auth();
@@ -81,7 +87,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await db.delete(coursePages).where(eq(coursePages.id, params.pageId));
+    const { pageId } = await context.params;
+
+    if (!pageId) {
+      return NextResponse.json({ error: "Missing pageId" }, { status: 400 });
+    }
+
+    await db.delete(coursePages).where(eq(coursePages.id, pageId));
 
     return NextResponse.json({ success: true });
   } catch (error) {

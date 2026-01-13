@@ -1,18 +1,28 @@
-// app/api/admin/courses/[courseId]/route.ts
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { courses } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
+type RouteContext<T> = { params: T | Promise<T> };
+
 export async function PATCH(
   request: Request,
-  { params }: { params: { courseId: string } }
+  context: RouteContext<{ courseId: string }>
 ) {
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { courseId } = await context.params;
+
+    if (!courseId) {
+      return NextResponse.json(
+        { error: "Missing courseId" },
+        { status: 400 }
+      );
     }
 
     const { title, description, price, accessCode, isPublished } =
@@ -28,7 +38,7 @@ export async function PATCH(
         isPublished,
         updatedAt: new Date(),
       })
-      .where(eq(courses.id, params.courseId));
+      .where(eq(courses.id, courseId));
 
     return NextResponse.json({ success: true });
   } catch (error) {

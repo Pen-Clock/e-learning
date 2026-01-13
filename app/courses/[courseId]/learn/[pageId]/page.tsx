@@ -9,31 +9,35 @@ import {
 } from "@/lib/db/queries";
 import { LearningLayout } from "../../../../../components/learning/learning-layout";
 
+type MaybePromise<T> = T | Promise<T>;
+
 export default async function LearnPage({
   params,
 }: {
-  params: { courseId: string; pageId: string };
+  params: MaybePromise<{ courseId: string; pageId: string }>;
 }) {
+  const { courseId, pageId } = await params;
+
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
-  const course = await getCourseById(params.courseId);
+  const course = await getCourseById(courseId);
   if (!course) notFound();
 
-  const enrolled = await isUserEnrolled(user.id, params.courseId);
-  if (!enrolled) redirect(`/courses/${params.courseId}`);
+  const enrolled = await isUserEnrolled(user.id, courseId);
+  if (!enrolled) redirect(`/courses/${courseId}`);
 
-  const pages = await getCoursePages(params.courseId);
-  const currentPage = await getPageWithSections(params.pageId);
+  const pages = await getCoursePages(courseId);
+  const currentPage = await getPageWithSections(pageId);
 
   if (!currentPage) notFound();
 
-  const currentPageIndex = pages.findIndex((p) => p.id === params.pageId);
+  const currentPageIndex = pages.findIndex((p) => p.id === pageId);
   const prevPage = currentPageIndex > 0 ? pages[currentPageIndex - 1] : null;
   const nextPage =
     currentPageIndex < pages.length - 1 ? pages[currentPageIndex + 1] : null;
 
-  const progress = await getUserProgress(user.id, params.pageId);
+  const progress = await getUserProgress(user.id, pageId);
 
   return (
     <LearningLayout
@@ -42,7 +46,7 @@ export default async function LearnPage({
       currentPage={currentPage}
       prevPage={prevPage}
       nextPage={nextPage}
-      courseId={params.courseId}
+      courseId={courseId}
       userId={user.id}
       isCompleted={!!progress?.completedAt}
     />

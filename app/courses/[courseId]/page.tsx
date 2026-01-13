@@ -2,28 +2,28 @@ import { currentUser } from "@clerk/nextjs/server";
 import { notFound, redirect } from "next/navigation";
 import { Navigation } from "@/components/navigation";
 import { Button } from "@/components/ui/button";
-import {
-  getCourseById,
-  isUserEnrolled,
-  getCoursePages,
-} from "@/lib/db/queries";
+import { getCourseById, isUserEnrolled, getCoursePages } from "@/lib/db/queries";
 import { EnrollButton } from "../../../components/course/enroll-button";
-import { BookOpen, Lock, Unlock } from "lucide-react";
+import { Lock, Unlock } from "lucide-react";
 import Link from "next/link";
+
+type MaybePromise<T> = T | Promise<T>;
 
 export default async function CoursePage({
   params,
 }: {
-  params: { courseId: string };
+  params: MaybePromise<{ courseId: string }>;
 }) {
+  const { courseId } = await params;
+
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
-  const course = await getCourseById(params.courseId);
+  const course = await getCourseById(courseId);
   if (!course) notFound();
 
-  const enrolled = await isUserEnrolled(user.id, params.courseId);
-  const pages = await getCoursePages(params.courseId);
+  const enrolled = await isUserEnrolled(user.id, courseId);
+  const pages = await getCoursePages(courseId);
   const firstPageId = pages[0]?.id;
 
   return (
@@ -63,7 +63,7 @@ export default async function CoursePage({
                   </p>
                 </div>
                 {firstPageId && (
-                  <Link href={`/courses/${params.courseId}/learn/${firstPageId}`}>
+                  <Link href={`/courses/${courseId}/learn/${firstPageId}`}>
                     <Button>Continue Learning</Button>
                   </Link>
                 )}
@@ -76,7 +76,7 @@ export default async function CoursePage({
                 {pages.map((page, index) => (
                   <Link
                     key={page.id}
-                    href={`/courses/${params.courseId}/learn/${page.id}`}
+                    href={`/courses/${courseId}/learn/${page.id}`}
                   >
                     <div className="flex items-center gap-3 rounded-md border border-border p-4 transition-colors hover:bg-muted/50">
                       <div className="flex h-8 w-8 items-center justify-center rounded bg-muted text-sm font-medium">
@@ -92,7 +92,9 @@ export default async function CoursePage({
         ) : (
           <div className="rounded-lg border border-border p-8">
             <div className="mb-6">
-              <h2 className="mb-2 text-xl font-semibold">Enroll in this course</h2>
+              <h2 className="mb-2 text-xl font-semibold">
+                Enroll in this course
+              </h2>
               <p className="text-sm text-muted-foreground">
                 {course.price === 0
                   ? "This course is free. Click below to start learning."
@@ -100,10 +102,7 @@ export default async function CoursePage({
               </p>
             </div>
 
-            <EnrollButton
-              courseId={params.courseId}
-              isFree={course.price === 0}
-            />
+            <EnrollButton courseId={courseId} isFree={course.price === 0} />
           </div>
         )}
       </main>

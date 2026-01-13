@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Plus, Trash2 } from "lucide-react";
-
 
 interface PageEditorModalProps {
   courseId: string;
@@ -13,9 +12,11 @@ interface PageEditorModalProps {
   onClose: () => void;
 }
 
+type SectionType = "text" | "mcq" | "code";
+
 interface Section {
   id?: string;
-  type: "text" | "mcq" | "code";
+  type: SectionType;
   orderIndex: number;
   content: any;
 }
@@ -32,86 +33,200 @@ export function PageEditorModal({
 
   useEffect(() => {
     if (page) {
-      loadPageSections();
+      void loadPageSections();
+    } else {
+      setSections([]);
     }
-  }, [page]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page?.id]);
+
+  const makeLocalId = () => {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return crypto.randomUUID();
+    }
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  };
+
+  const normalizeSections = (next: Section[]) =>
+    next.map((s, i) => ({ ...s, orderIndex: i }));
+
+  const safeParseJson = (value: unknown) => {
+    if (typeof value !== "string") return value;
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  };
 
   const loadPageSections = async () => {
     if (!page) return;
     try {
       const response = await fetch(`/api/admin/pages/${page.id}`);
       const data = await response.json();
-      setSections(data.sections || []);
+
+      const loaded = (data.sections || []).map((s: any) => ({
+        id: s.id,
+        type: s.type as SectionType,
+        orderIndex: s.orderIndex,
+        content: safeParseJson(s.content),
+      }));
+
+      setSections(normalizeSections(loaded));
     } catch (err) {
       console.error("Failed to load sections:", err);
     }
   };
 
-  const handleAddSection = (type: "text" | "mcq" | "code") => {
-    const newSection: Section = {
-      type,
-      orderIndex: sections.length,
-      content: getDefaultContent(type),
-    };
-    setSections([...sections, newSection]);
-  };
-
-  const getDefaultContent = (type: string) => {
+  const getDefaultContent = (type: SectionType) => {
     switch (type) {
       case "text":
         return { html: "<p>Enter your content here...</p>" };
+
       case "mcq":
         return {
           question: "Your question here?",
           options: [
-            { id: "1", text: "Option 1", isCorrect: false },
-            { id: "2", text: "Option 2", isCorrect: true },
+            { id: makeLocalId(), text: "Option 1", isCorrect: false },
+            { id: makeLocalId(), text: "Option 2", isCorrect: true },
           ],
           explanation: "Explanation here...",
         };
+
       case "code":
         return {
           title: "Coding Challenge",
           description: "Write a function that...",
           starterCode: "function solution(input) {\n  // Your code here\n}",
           language: "javascript",
-          testCases: [
-            { input: "5", expectedOutput: "5", hidden: false },
-          ],
+          testCases: [{ input: "5", expectedOutput: "5", hidden: false }],
         };
+
       default:
         return {};
     }
   };
 
+  const handleAddSection = (type: SectionType) => {
+    const newSection: Section = {
+      type,
+      orderIndex: sections.length,
+      content: getDefaultContent(type),
+    };
+    setSections(normalizeSections([...sections, newSection]));
+  };
+
   const handleUpdateSection = (index: number, content: any) => {
     const updated = [...sections];
     updated[index].content = content;
-    setSections(updated);
+    setSections(normalizeSections(updated));
   };
 
   const handleDeleteSection = (index: number) => {
-    setSections(sections.filter((_, i) => i !== index));
+    setSections(normalizeSections(sections.filter((_, i) => i !== index)));
+  };
+
+  const moveSection = (index: number, direction: -1 | 1) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= sections.length) return;
+
+    const next = [...sections];
+    const tmp = next[index];
+    next[index] = next[nextIndex];
+    next[nextIndex] = tmp;
+
+    setSections(normalizeSections(next));
+  };
+
+  const addMcqOption = (sectionIndex: number) => {
+    const section = sections[sectionIndex];
+    const nextOptions = [
+      ...(section.content.options || []),
+      { id: makeLocalId(), text: "", isCorrect: false },
+    ];
+    handleUpdateSection(sectionIndex, {
+      ...section.content,
+      options: nextOptions,
+    });
+  };
+
+  const deleteMcqOption = (sectionIndex: number, optionIndex: number) => {
+    const section = sections[sectionIndex];
+    const nextOptions = (section.content.options || []).filter(
+      (_: any, i: number) => i !== optionIndex
+    );
+    handleUpdateSection(sectionIndex, {
+      ...section.content,
+      options: nextOptions,
+    });
+  };
+
+  const setMcqCorrect = (sectionIndex: number, optionIndex: number) => {
+    const section = sections[sectionIndex];
+    const nextOptions = (section.content.options || []).map(
+      (opt: any, i: number) => ({
+        ...opt,
+        isCorrect: i === optionIndex,
+      })
+    );
+    handleUpdateSection(sectionIndex, {
+      ...section.content,
+      options: nextOptions,
+    });
+  };
+
+  const addTestCase = (sectionIndex: number) => {
+    const section = sections[sectionIndex];
+    const nextTestCases = [
+      ...(section.content.testCases || []),
+      { input: "", expectedOutput: "", hidden: false },
+    ];
+    handleUpdateSection(sectionIndex, {
+      ...section.content,
+      testCases: nextTestCases,
+    });
+  };
+
+  const deleteTestCase = (sectionIndex: number, testIndex: number) => {
+    const section = sections[sectionIndex];
+    const nextTestCases = (section.content.testCases || []).filter(
+      (_: any, i: number) => i !== testIndex
+    );
+    handleUpdateSection(sectionIndex, {
+      ...section.content,
+      testCases: nextTestCases,
+    });
   };
 
   const handleSave = async () => {
     setLoading(true);
     try {
-      const endpoint = page
-        ? `/api/admin/pages/${page.id}`
-        : "/api/admin/pages";
+      const endpoint = page ? `/api/admin/pages/${page.id}` : "/api/admin/pages";
       const method = page ? "PATCH" : "POST";
 
-      await fetch(endpoint, {
+      const payloadSections = normalizeSections(sections).map((s) => ({
+        id: s.id,
+        type: s.type,
+        orderIndex: s.orderIndex,
+        content: s.content,
+      }));
+
+      const response = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           courseId,
           title,
           orderIndex: page?.orderIndex ?? pageCount,
-          sections,
+          sections: payloadSections,
         }),
       });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        console.error("Failed to save page:", response.status, data);
+        return;
+      }
 
       onClose();
     } catch (err) {
@@ -180,13 +295,32 @@ export function PageEditorModal({
                   <span className="text-sm font-medium capitalize">
                     {section.type} Section
                   </span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleDeleteSection(index)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => moveSection(index, -1)}
+                      disabled={index === 0}
+                    >
+                      Up
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => moveSection(index, 1)}
+                      disabled={index === sections.length - 1}
+                    >
+                      Down
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDeleteSection(index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
 
                 {section.type === "text" && (
@@ -195,7 +329,7 @@ export function PageEditorModal({
                     onChange={(e) =>
                       handleUpdateSection(index, { html: e.target.value })
                     }
-                    rows={4}
+                    rows={6}
                     placeholder="Enter HTML content..."
                     className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
                   />
@@ -213,38 +347,60 @@ export function PageEditorModal({
                       }
                       placeholder="Question"
                     />
-                    {section.content.options.map((opt: any, optIndex: number) => (
-                      <div key={optIndex} className="flex gap-2">
-                        <Input
-                          value={opt.text}
-                          onChange={(e) => {
-                            const newOptions = [...section.content.options];
-                            newOptions[optIndex].text = e.target.value;
-                            handleUpdateSection(index, {
-                              ...section.content,
-                              options: newOptions,
-                            });
-                          }}
-                          placeholder={`Option ${optIndex + 1}`}
-                        />
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={opt.isCorrect}
+
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">Options</p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => addMcqOption(index)}
+                      >
+                        Add option
+                      </Button>
+                    </div>
+
+                    {(section.content.options || []).map(
+                      (opt: any, optIndex: number) => (
+                        <div
+                          key={opt.id || optIndex}
+                          className="flex items-center gap-2"
+                        >
+                          <Input
+                            value={opt.text}
                             onChange={(e) => {
-                              const newOptions = [...section.content.options];
-                              newOptions[optIndex].isCorrect = e.target.checked;
+                              const nextOptions = [...section.content.options];
+                              nextOptions[optIndex] = {
+                                ...nextOptions[optIndex],
+                                text: e.target.value,
+                              };
                               handleUpdateSection(index, {
                                 ...section.content,
-                                options: newOptions,
+                                options: nextOptions,
                               });
                             }}
-                            className="h-4 w-4"
+                            placeholder={`Option ${optIndex + 1}`}
                           />
-                          Correct
-                        </label>
-                      </div>
-                    ))}
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="radio"
+                              name={`mcq-correct-${index}`}
+                              checked={!!opt.isCorrect}
+                              onChange={() => setMcqCorrect(index, optIndex)}
+                              className="h-4 w-4"
+                            />
+                            Correct
+                          </label>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deleteMcqOption(index, optIndex)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )
+                    )}
+
                     <Input
                       value={section.content.explanation || ""}
                       onChange={(e) =>
@@ -288,10 +444,95 @@ export function PageEditorModal({
                           starterCode: e.target.value,
                         })
                       }
-                      rows={4}
+                      rows={6}
                       placeholder="Starter code..."
                       className="w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm"
                     />
+
+                    <div className="mt-2 flex items-center justify-between">
+                      <p className="text-sm font-medium">Test cases</p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => addTestCase(index)}
+                      >
+                        Add test
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      {(section.content.testCases || []).map(
+                        (tc: any, tcIndex: number) => (
+                          <div
+                            key={tcIndex}
+                            className="rounded-md border border-border p-3"
+                          >
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <Input
+                                value={tc.input}
+                                onChange={(e) => {
+                                  const next = [...section.content.testCases];
+                                  next[tcIndex] = {
+                                    ...next[tcIndex],
+                                    input: e.target.value,
+                                  };
+                                  handleUpdateSection(index, {
+                                    ...section.content,
+                                    testCases: next,
+                                  });
+                                }}
+                                placeholder="Input"
+                              />
+                              <Input
+                                value={tc.expectedOutput}
+                                onChange={(e) => {
+                                  const next = [...section.content.testCases];
+                                  next[tcIndex] = {
+                                    ...next[tcIndex],
+                                    expectedOutput: e.target.value,
+                                  };
+                                  handleUpdateSection(index, {
+                                    ...section.content,
+                                    testCases: next,
+                                  });
+                                }}
+                                placeholder="Expected output"
+                              />
+                            </div>
+
+                            <div className="mt-2 flex items-center justify-between">
+                              <label className="flex items-center gap-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={!!tc.hidden}
+                                  onChange={(e) => {
+                                    const next = [...section.content.testCases];
+                                    next[tcIndex] = {
+                                      ...next[tcIndex],
+                                      hidden: e.target.checked,
+                                    };
+                                    handleUpdateSection(index, {
+                                      ...section.content,
+                                      testCases: next,
+                                    });
+                                  }}
+                                  className="h-4 w-4"
+                                />
+                                Hidden from students
+                              </label>
+
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => deleteTestCase(index, tcIndex)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
