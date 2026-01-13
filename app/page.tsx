@@ -25,8 +25,7 @@ export default async function HomePage() {
             Explore Courses
           </h1>
           <p className="text-lg text-muted-foreground">
-            Learn new skills with interactive lessons and hands-on coding
-            exercises
+            Learn new skills 
           </p>
         </div>
 
