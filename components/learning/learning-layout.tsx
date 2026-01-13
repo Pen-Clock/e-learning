@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +15,19 @@ import {
 } from "lucide-react";
 import { TextSection } from "./text-section";
 import { MCQSection } from "./mcq-section";
-import { CodeSection } from "./code-section";
+
+const CodeSection = dynamic(
+  () => import("./code-section").then((m) => m.CodeSection),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-lg border border-border bg-card p-8">
+        Loading editor...
+      </div>
+    ),
+  }
+);
+
 interface Page {
   id: string;
   title: string;

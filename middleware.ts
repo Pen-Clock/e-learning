@@ -4,11 +4,9 @@ export default clerkMiddleware();
 
 export const config = {
   matcher: [
-    /*
-     * Protect everything except:
-     * - auth routes
-     * - public files
-     */
+    // Run Clerk middleware on all non-static routes AND on API routes
+    "/((?!.*\\..*|_next).*)",
+    "/(api|trpc)(.*)",
     "/((?!sign-in|sign-up|api|_next|.*\\..*).*)",
   ],
 };

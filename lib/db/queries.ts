@@ -14,6 +14,9 @@ export async function getCourses() {
 }
 
 export async function getCourseById(courseId: string) {
+  if (!courseId) {
+    return null;
+}
   const result = await db
     .select()
     .from(courses)
