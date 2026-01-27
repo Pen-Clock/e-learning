@@ -25,7 +25,7 @@ export function CourseCard({
         <div className="aspect-video w-full overflow-hidden rounded-t-lg bg-muted">
           {thumbnailUrl ? (
             <img
-              src={thumbnailUrl}
+              src={thumbnailUrl || "/placeholder.svg"}
               alt={title}
               className="h-full w-full object-cover"
             />
