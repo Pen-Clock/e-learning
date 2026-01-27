@@ -291,7 +291,7 @@ export function LearningLayout({
           className="flex-1 overflow-y-auto"
           style={{ height: "calc(100vh - 8rem)" }}
         >
-          <div className="mx-auto max-w-4xl px-4 py-8 lg:px-6">
+          <div className="-w-4xl px-4 py-8 lg:px-6">
             <div className="space-y-6">
               {currentPage.sections.map((section) => {
                 if (section.type === "text") {
