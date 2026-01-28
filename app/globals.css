@@ -1,52 +1,90 @@
-
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+
+
 @custom-variant dark (&:is(.dark *));
 
-:root {
-  --background: oklch(0.985 0.002 250);
-  --foreground: oklch(0.145 0.02 260);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0.02 260);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0.02 260);
-  --primary: oklch(0.55 0.18 260);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.96 0.005 250);
-  --secondary-foreground: oklch(0.25 0.02 260);
-  --muted: oklch(0.96 0.005 250);
-  --muted-foreground: oklch(0.45 0.01 260);
-  --accent: oklch(0.96 0.02 260);
-  --accent-foreground: oklch(0.55 0.18 260);
-  --destructive: oklch(0.55 0.2 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --success: oklch(0.6 0.17 155);
-  --success-foreground: oklch(0.98 0 0);
-  --border: oklch(0.91 0.005 250);
-  --input: oklch(0.91 0.005 250);
-  --ring: oklch(0.55 0.18 260);
-  --chart-1: oklch(0.55 0.18 260);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.98 0.002 250);
-  --sidebar-foreground: oklch(0.145 0.02 260);
-  --sidebar-primary: oklch(0.55 0.18 260);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.96 0.01 260);
-  --sidebar-accent-foreground: oklch(0.25 0.02 260);
-  --sidebar-border: oklch(0.91 0.005 250);
-  --sidebar-ring: oklch(0.55 0.18 260);
+@layer base {
+  :root {
+    --background: 0 0% 99%;
+    --foreground: 270 10% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 270 10% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 270 10% 15%;
+    --primary: 270 70% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 270 5% 95%;
+    --secondary-foreground: 270 10% 15%;
+    --muted: 270 5% 96%;
+    --muted-foreground: 270 5% 50%;
+    --accent: 270 10% 93%;
+    --accent-foreground: 270 10% 15%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 150 60% 50%;
+    --success-foreground: 0 0% 100%;
+    --border: 270 5% 90%;
+    --input: 270 5% 90%;
+    --ring: 270 70% 55%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.625rem;
+    --sidebar: 270 5% 98%;
+    --sidebar-foreground: 270 10% 15%;
+    --sidebar-primary: 270 70% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 270 5% 95%;
+    --sidebar-accent-foreground: 270 10% 15%;
+    --sidebar-border: 270 5% 90%;
+    --sidebar-ring: 270 70% 55%;
+  }
+
+  .dark {
+    --background: 270 10% 12%;
+    --foreground: 270 5% 98%;
+    --card: 270 10% 15%;
+    --card-foreground: 270 5% 98%;
+    --popover: 270 10% 15%;
+    --popover-foreground: 270 5% 98%;
+    --primary: 270 70% 65%;
+    --primary-foreground: 270 5% 98%;
+    --secondary: 270 10% 20%;
+    --secondary-foreground: 270 5% 98%;
+    --muted: 270 10% 20%;
+    --muted-foreground: 270 5% 60%;
+    --accent: 270 10% 22%;
+    --accent-foreground: 270 5% 98%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 270 5% 98%;
+    --success: 150 50% 45%;
+    --success-foreground: 270 5% 98%;
+    --border: 270 10% 22%;
+    --input: 270 10% 22%;
+    --ring: 270 70% 65%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar: 270 10% 15%;
+    --sidebar-foreground: 270 5% 98%;
+    --sidebar-primary: 270 70% 65%;
+    --sidebar-primary-foreground: 270 5% 98%;
+    --sidebar-accent: 270 10% 20%;
+    --sidebar-accent-foreground: 270 5% 98%;
+    --sidebar-border: 270 10% 22%;
+    --sidebar-ring: 270 70% 65%;
+  }
 }
 
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback';
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  /* optional: --font-sans, --font-serif, --font-mono if they are applied in the layout.tsx */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -63,8 +101,6 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
-  --color-success: var(--success);
-  --color-success-foreground: var(--success-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
