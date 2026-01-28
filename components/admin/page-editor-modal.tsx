@@ -5,6 +5,12 @@ import { X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+/**
+ * Multi-language support notes:
+ * - We store per-language starter code + per-language testcases in the code section content.
+ * - Monaco/@monaco-editor/react uses a `language` id for syntax highlighting; common ids include "c", "cpp", "java", "python", "javascript", "typescript". [web:33][web:37]
+ */
+
 interface PageEditorModalProps {
   courseId: string;
   page: { id: string; title: string; orderIndex: number } | null;
@@ -19,6 +25,57 @@ interface Section {
   type: SectionType;
   orderIndex: number;
   content: any;
+}
+
+type SupportedLang = "c" | "cpp" | "java" | "python" | "javascript" | "typescript";
+
+const SUPPORTED_LANGS: { id: SupportedLang; label: string }[] = [
+  { id: "c", label: "C" },
+  { id: "cpp", label: "C++" },
+  { id: "java", label: "Java" },
+  { id: "python", label: "Python" },
+  { id: "javascript", label: "JavaScript" },
+  { id: "typescript", label: "TypeScript" },
+];
+
+function makeEmptyStarters(): Record<SupportedLang, string> {
+  return {
+    c: "",
+    cpp: "",
+    java: "",
+    python: "",
+    javascript: "",
+    typescript: "",
+  };
+}
+
+function normalizeCodeContent(content: any) {
+  // Backward compatibility: if old shape exists, convert on-the-fly.
+  // Old: { starterCode, language, testCases }
+  // New: { defaultLanguage, starterCodeByLang, testCasesByLang, _editingLang? }
+  if (content && typeof content === "object" && content.starterCodeByLang) {
+    return {
+      defaultLanguage: (content.defaultLanguage || "javascript") as SupportedLang,
+      starterCodeByLang: { ...makeEmptyStarters(), ...(content.starterCodeByLang || {}) },
+      testCasesByLang: content.testCasesByLang || {},
+      _editingLang: content._editingLang as SupportedLang | undefined,
+      title: content.title || "Coding Challenge",
+      description: content.description || "Write a function that...",
+    };
+  }
+
+  const legacyLang = (content?.language || "javascript") as SupportedLang;
+  const legacyStarter = typeof content?.starterCode === "string" ? content.starterCode : "";
+  const legacyTests = Array.isArray(content?.testCases) ? content.testCases : [];
+
+  return {
+    defaultLanguage: legacyLang,
+    starterCodeByLang: { ...makeEmptyStarters(), [legacyLang]: legacyStarter },
+    testCasesByLang: { [legacyLang]: legacyTests },
+    _editingLang: legacyLang,
+    title: content?.title || "Coding Challenge",
+    description: content?.description || "Write a function that...",
+  };
 }
 
 export function PageEditorModal({
@@ -47,8 +104,7 @@ export function PageEditorModal({
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   };
 
-  const normalizeSections = (next: Section[]) =>
-    next.map((s, i) => ({ ...s, orderIndex: i }));
+  const normalizeSections = (next: Section[]) => next.map((s, i) => ({ ...s, orderIndex: i }));
 
   const safeParseJson = (value: unknown) => {
     if (typeof value !== "string") return value;
@@ -65,12 +121,24 @@ export function PageEditorModal({
       const response = await fetch(`/api/admin/pages/${page.id}`);
       const data = await response.json();
 
-      const loaded = (data.sections || []).map((s: any) => ({
-        id: s.id,
-        type: s.type as SectionType,
-        orderIndex: s.orderIndex,
-        content: safeParseJson(s.content),
-      }));
+      const loaded = (data.sections || []).map((s: any) => {
+        const parsedContent = safeParseJson(s.content);
+        if (s.type === "code") {
+          return {
+            id: s.id,
+            type: s.type as SectionType,
+            orderIndex: s.orderIndex,
+            content: normalizeCodeContent(parsedContent),
+          };
+        }
+
+        return {
+          id: s.id,
+          type: s.type as SectionType,
+          orderIndex: s.orderIndex,
+          content: parsedContent,
+        };
+      });
 
       setSections(normalizeSections(loaded));
     } catch (err) {
@@ -93,14 +161,22 @@ export function PageEditorModal({
           explanation: "Explanation here...",
         };
 
-      case "code":
+      case "code": {
+        const defaultLanguage: SupportedLang = "javascript";
         return {
           title: "Coding Challenge",
           description: "Write a function that...",
-          starterCode: "function solution(input) {\n  // Your code here\n}",
-          language: "javascript",
-          testCases: [{ input: "5", expectedOutput: "5", hidden: false }],
+          defaultLanguage,
+          _editingLang: defaultLanguage,
+          starterCodeByLang: {
+            ...makeEmptyStarters(),
+            javascript: "function solution(input) {\n  // Your code here\n}\n",
+          },
+          testCasesByLang: {
+            javascript: [{ input: "5", expectedOutput: "5", hidden: false }],
+          },
         };
+      }
 
       case "image":
         return {
@@ -118,14 +194,14 @@ export function PageEditorModal({
     const newSection: Section = {
       type,
       orderIndex: sections.length,
-      content: getDefaultContent(type),
+      content: type === "code" ? normalizeCodeContent(getDefaultContent(type)) : getDefaultContent(type),
     };
     setSections(normalizeSections([...sections, newSection]));
   };
 
   const handleUpdateSection = (index: number, content: any) => {
     const updated = [...sections];
-    updated[index].content = content;
+    updated[index].content = updated[index].type === "code" ? normalizeCodeContent(content) : content;
     setSections(normalizeSections(updated));
   };
 
@@ -182,6 +258,7 @@ export function PageEditorModal({
     });
   };
 
+  // Legacy helpers kept for non-migrated pages; code sections now use per-language testcases
   const addTestCase = (sectionIndex: number) => {
     const section = sections[sectionIndex];
     const nextTestCases = [
@@ -211,12 +288,27 @@ export function PageEditorModal({
       const endpoint = page ? `/api/admin/pages/${page.id}` : "/api/admin/pages";
       const method = page ? "PATCH" : "POST";
 
-      const payloadSections = normalizeSections(sections).map((s) => ({
-        id: s.id,
-        type: s.type,
-        orderIndex: s.orderIndex,
-        content: s.content,
-      }));
+      const payloadSections = normalizeSections(sections).map((s) => {
+        // Ensure code section is in new format when saved
+        if (s.type === "code") {
+          const normalized = normalizeCodeContent(s.content);
+          // Do not persist editor-only helper field if you don’t want it saved
+          const { _editingLang, ...persisted } = normalized;
+          return {
+            id: s.id,
+            type: s.type,
+            orderIndex: s.orderIndex,
+            content: persisted,
+          };
+        }
+
+        return {
+          id: s.id,
+          type: s.type,
+          orderIndex: s.orderIndex,
+          content: s.content,
+        };
+      });
 
       const response = await fetch(endpoint, {
         method,
@@ -271,32 +363,16 @@ export function PageEditorModal({
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-semibold">Sections</h3>
             <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleAddSection("text")}
-              >
+              <Button size="sm" variant="outline" onClick={() => handleAddSection("text")}>
                 + Text
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleAddSection("image")}
-              >
+              <Button size="sm" variant="outline" onClick={() => handleAddSection("image")}>
                 + Image
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleAddSection("mcq")}
-              >
+              <Button size="sm" variant="outline" onClick={() => handleAddSection("mcq")}>
                 + MCQ
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleAddSection("code")}
-              >
+              <Button size="sm" variant="outline" onClick={() => handleAddSection("code")}>
                 + Code
               </Button>
             </div>
@@ -306,9 +382,7 @@ export function PageEditorModal({
             {sections.map((section, index) => (
               <div key={index} className="rounded-lg border border-border p-4">
                 <div className="mb-3 flex items-center justify-between">
-                  <span className="text-sm font-medium capitalize">
-                    {section.type} Section
-                  </span>
+                  <span className="text-sm font-medium capitalize">{section.type} Section</span>
 
                   <div className="flex items-center gap-2">
                     <Button
@@ -418,47 +492,45 @@ export function PageEditorModal({
                       </Button>
                     </div>
 
-                    {(section.content.options || []).map(
-                      (opt: any, optIndex: number) => (
-                        <div
-                          key={opt.id || optIndex}
-                          className="flex items-center gap-2"
-                        >
-                          <Input
-                            value={opt.text}
-                            onChange={(e) => {
-                              const nextOptions = [...section.content.options];
-                              nextOptions[optIndex] = {
-                                ...nextOptions[optIndex],
-                                text: e.target.value,
-                              };
-                              handleUpdateSection(index, {
-                                ...section.content,
-                                options: nextOptions,
-                              });
-                            }}
-                            placeholder={`Option ${optIndex + 1}`}
+                    {(section.content.options || []).map((opt: any, optIndex: number) => (
+                      <div
+                        key={opt.id || optIndex}
+                        className="flex items-center gap-2"
+                      >
+                        <Input
+                          value={opt.text}
+                          onChange={(e) => {
+                            const nextOptions = [...section.content.options];
+                            nextOptions[optIndex] = {
+                              ...nextOptions[optIndex],
+                              text: e.target.value,
+                            };
+                            handleUpdateSection(index, {
+                              ...section.content,
+                              options: nextOptions,
+                            });
+                          }}
+                          placeholder={`Option ${optIndex + 1}`}
+                        />
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name={`mcq-correct-${index}`}
+                            checked={!!opt.isCorrect}
+                            onChange={() => setMcqCorrect(index, optIndex)}
+                            className="h-4 w-4"
                           />
-                          <label className="flex items-center gap-2 text-sm">
-                            <input
-                              type="radio"
-                              name={`mcq-correct-${index}`}
-                              checked={!!opt.isCorrect}
-                              onChange={() => setMcqCorrect(index, optIndex)}
-                              className="h-4 w-4"
-                            />
-                            Correct
-                          </label>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => deleteMcqOption(index, optIndex)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      )
-                    )}
+                          Correct
+                        </label>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => deleteMcqOption(index, optIndex)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
 
                     <Input
                       value={section.content.explanation || ""}
@@ -473,55 +545,142 @@ export function PageEditorModal({
                   </div>
                 )}
 
-                {section.type === "code" && (
-                  <div className="space-y-3">
-                    <Input
-                      value={section.content.title}
-                      onChange={(e) =>
-                        handleUpdateSection(index, {
-                          ...section.content,
-                          title: e.target.value,
-                        })
-                      }
-                      placeholder="Challenge Title"
-                    />
-                    <Input
-                      value={section.content.description}
-                      onChange={(e) =>
-                        handleUpdateSection(index, {
-                          ...section.content,
-                          description: e.target.value,
-                        })
-                      }
-                      placeholder="Description"
-                    />
-                    <textarea
-                      value={section.content.starterCode}
-                      onChange={(e) =>
-                        handleUpdateSection(index, {
-                          ...section.content,
-                          starterCode: e.target.value,
-                        })
-                      }
-                      rows={6}
-                      placeholder="Starter code..."
-                      className="w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm"
-                    />
+                {section.type === "code" && (() => {
+                  const codeContent = normalizeCodeContent(section.content);
+                  const editingLang = (codeContent._editingLang ||
+                    codeContent.defaultLanguage ||
+                    "javascript") as SupportedLang;
 
-                    <div className="mt-2 flex items-center justify-between">
-                      <p className="text-sm font-medium">Test cases</p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => addTestCase(index)}
-                      >
-                        Add test
-                      </Button>
-                    </div>
+                  const starterCodeByLang = {
+                    ...makeEmptyStarters(),
+                    ...(codeContent.starterCodeByLang || {}),
+                  };
 
-                    <div className="space-y-2">
-                      {(section.content.testCases || []).map(
-                        (tc: any, tcIndex: number) => (
+                  const testCasesByLang = codeContent.testCasesByLang || {};
+                  const testCases = Array.isArray(testCasesByLang[editingLang])
+                    ? testCasesByLang[editingLang]
+                    : [];
+
+                  const setEditingLanguage = (lang: SupportedLang) => {
+                    handleUpdateSection(index, {
+                      ...codeContent,
+                      _editingLang: lang,
+                    });
+                  };
+
+                  const setDefaultLanguage = (lang: SupportedLang) => {
+                    handleUpdateSection(index, {
+                      ...codeContent,
+                      defaultLanguage: lang,
+                      _editingLang: codeContent._editingLang || lang,
+                    });
+                  };
+
+                  const updateStarterForLang = (lang: SupportedLang, value: string) => {
+                    handleUpdateSection(index, {
+                      ...codeContent,
+                      starterCodeByLang: { ...starterCodeByLang, [lang]: value },
+                    });
+                  };
+
+                  const addTest = () => {
+                    const next = [...testCases, { input: "", expectedOutput: "", hidden: false }];
+                    handleUpdateSection(index, {
+                      ...codeContent,
+                      testCasesByLang: { ...testCasesByLang, [editingLang]: next },
+                    });
+                  };
+
+                  const deleteTest = (tcIndex: number) => {
+                    const next = testCases.filter((_: any, i: number) => i !== tcIndex);
+                    handleUpdateSection(index, {
+                      ...codeContent,
+                      testCasesByLang: { ...testCasesByLang, [editingLang]: next },
+                    });
+                  };
+
+                  const updateTest = (tcIndex: number, patch: any) => {
+                    const next = [...testCases];
+                    next[tcIndex] = { ...next[tcIndex], ...patch };
+                    handleUpdateSection(index, {
+                      ...codeContent,
+                      testCasesByLang: { ...testCasesByLang, [editingLang]: next },
+                    });
+                  };
+
+                  return (
+                    <div className="space-y-3">
+                      <Input
+                        value={codeContent.title}
+                        onChange={(e) =>
+                          handleUpdateSection(index, {
+                            ...codeContent,
+                            title: e.target.value,
+                          })
+                        }
+                        placeholder="Challenge Title"
+                      />
+
+                      <Input
+                        value={codeContent.description}
+                        onChange={(e) =>
+                          handleUpdateSection(index, {
+                            ...codeContent,
+                            description: e.target.value,
+                          })
+                        }
+                        placeholder="Description"
+                      />
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <p className="mb-1 text-sm font-medium">Default language</p>
+                          <select
+                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                            value={codeContent.defaultLanguage}
+                            onChange={(e) => setDefaultLanguage(e.target.value as SupportedLang)}
+                          >
+                            {SUPPORTED_LANGS.map((l) => (
+                              <option key={l.id} value={l.id}>
+                                {l.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <p className="mb-1 text-sm font-medium">Edit language</p>
+                          <select
+                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                            value={editingLang}
+                            onChange={(e) => setEditingLanguage(e.target.value as SupportedLang)}
+                          >
+                            {SUPPORTED_LANGS.map((l) => (
+                              <option key={l.id} value={l.id}>
+                                {l.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <textarea
+                        value={starterCodeByLang[editingLang]}
+                        onChange={(e) => updateStarterForLang(editingLang, e.target.value)}
+                        rows={6}
+                        placeholder={`Starter code (${editingLang})...`}
+                        className="w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm"
+                      />
+
+                      <div className="mt-2 flex items-center justify-between">
+                        <p className="text-sm font-medium">Test cases ({editingLang})</p>
+                        <Button size="sm" variant="outline" onClick={addTest}>
+                          Add test
+                        </Button>
+                      </div>
+
+                      <div className="space-y-2">
+                        {testCases.map((tc: any, tcIndex: number) => (
                           <div
                             key={tcIndex}
                             className="rounded-md border border-border p-3"
@@ -529,32 +688,14 @@ export function PageEditorModal({
                             <div className="grid gap-2 sm:grid-cols-2">
                               <Input
                                 value={tc.input}
-                                onChange={(e) => {
-                                  const next = [...section.content.testCases];
-                                  next[tcIndex] = {
-                                    ...next[tcIndex],
-                                    input: e.target.value,
-                                  };
-                                  handleUpdateSection(index, {
-                                    ...section.content,
-                                    testCases: next,
-                                  });
-                                }}
+                                onChange={(e) => updateTest(tcIndex, { input: e.target.value })}
                                 placeholder="Input"
                               />
                               <Input
                                 value={tc.expectedOutput}
-                                onChange={(e) => {
-                                  const next = [...section.content.testCases];
-                                  next[tcIndex] = {
-                                    ...next[tcIndex],
-                                    expectedOutput: e.target.value,
-                                  };
-                                  handleUpdateSection(index, {
-                                    ...section.content,
-                                    testCases: next,
-                                  });
-                                }}
+                                onChange={(e) =>
+                                  updateTest(tcIndex, { expectedOutput: e.target.value })
+                                }
                                 placeholder="Expected output"
                               />
                             </div>
@@ -564,17 +705,9 @@ export function PageEditorModal({
                                 <input
                                   type="checkbox"
                                   checked={!!tc.hidden}
-                                  onChange={(e) => {
-                                    const next = [...section.content.testCases];
-                                    next[tcIndex] = {
-                                      ...next[tcIndex],
-                                      hidden: e.target.checked,
-                                    };
-                                    handleUpdateSection(index, {
-                                      ...section.content,
-                                      testCases: next,
-                                    });
-                                  }}
+                                  onChange={(e) =>
+                                    updateTest(tcIndex, { hidden: e.target.checked })
+                                  }
                                   className="h-4 w-4"
                                 />
                                 Hidden from students
@@ -583,17 +716,25 @@ export function PageEditorModal({
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => deleteTestCase(index, tcIndex)}
+                                onClick={() => deleteTest(tcIndex)}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
                           </div>
-                        )
-                      )}
+                        ))}
+
+                        {testCases.length === 0 && (
+                          <div className="rounded-md border border-dashed border-border p-4 text-center">
+                            <p className="text-sm text-muted-foreground">
+                              No test cases for {editingLang} yet.
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             ))}
 
