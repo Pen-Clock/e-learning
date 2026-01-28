@@ -1,6 +1,7 @@
+// components/admin/course-editor.tsx
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ interface Course {
   description: string;
   thumbnailUrl: string | null;
   price: number;
-  accessCode: string | null;
+  accessCode: string | null; // legacy field in your DB; you can remove later if you want
   isPublished: boolean;
 }
 
@@ -31,8 +32,10 @@ interface CourseEditorProps {
 
 export function CourseEditor({ course, pages }: CourseEditorProps) {
   const router = useRouter();
+
   const [editingPage, setEditingPage] = useState<Page | null>(null);
   const [showPageModal, setShowPageModal] = useState(false);
+
   const [formData, setFormData] = useState({
     title: course.title,
     description: course.description,
@@ -41,7 +44,15 @@ export function CourseEditor({ course, pages }: CourseEditorProps) {
     accessCode: course.accessCode || "",
     isPublished: course.isPublished,
   });
+
   const [saving, setSaving] = useState(false);
+
+  // One-time token generator UI state
+  const isPremium = useMemo(() => Number(formData.price) > 0, [formData.price]);
+  const [tokenExpiryMinutes, setTokenExpiryMinutes] = useState<string>("1440"); // 24h default
+  const [tokenLoading, setTokenLoading] = useState(false);
+  const [generatedToken, setGeneratedToken] = useState<string>("");
+  const [tokenError, setTokenError] = useState<string>("");
 
   const handleUpdateCourse = async () => {
     setSaving(true);
@@ -78,6 +89,45 @@ export function CourseEditor({ course, pages }: CourseEditorProps) {
     }
   };
 
+  const handleGenerateToken = async () => {
+    setTokenError("");
+    setGeneratedToken("");
+    setTokenLoading(true);
+
+    try {
+      const expiryMinutesNumber = Number(tokenExpiryMinutes);
+      const expiryMinutes =
+        Number.isFinite(expiryMinutesNumber) && expiryMinutesNumber > 0
+          ? expiryMinutesNumber
+          : null;
+
+      const response = await fetch(`/api/admin/courses/${course.id}/tokens`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          // Send null/undefined to mean "no expiry" if you want that behavior
+          expiryMinutes,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setTokenError(data?.error || "Failed to generate code");
+        return;
+      }
+
+      // API returns { id, token, expiresAt }
+      setGeneratedToken(String(data?.token || ""));
+      if (!data?.token) setTokenError("Generated, but no token returned.");
+    } catch (err) {
+      console.error("Failed to generate code:", err);
+      setTokenError("Failed to generate code");
+    } finally {
+      setTokenLoading(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
       <Link
@@ -110,9 +160,7 @@ export function CourseEditor({ course, pages }: CourseEditorProps) {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium">
-                Description
-              </label>
+              <label className="mb-2 block text-sm font-medium">Description</label>
               <textarea
                 value={formData.description}
                 onChange={(e) =>
@@ -162,10 +210,12 @@ export function CourseEditor({ course, pages }: CourseEditorProps) {
                 />
               </div>
 
+              {/* Legacy field (optional). If you fully migrate to one-time tokens,
+                  you can remove this whole block. */}
               {formData.price !== "0" && (
                 <div>
                   <label className="mb-2 block text-sm font-medium">
-                    Access Code
+                    Access Code (legacy)
                   </label>
                   <Input
                     type="text"
@@ -174,9 +224,60 @@ export function CourseEditor({ course, pages }: CourseEditorProps) {
                       setFormData({ ...formData, accessCode: e.target.value })
                     }
                   />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Optional: keep only if you still want a shared code fallback.
+                  </p>
                 </div>
               )}
             </div>
+
+            {/* New: one-time access code generator */}
+            {isPremium && (
+              <div className="rounded-lg border border-border bg-muted/30 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">One-time access code</p>
+                    <p className="text-xs text-muted-foreground">
+                      Generates a unique code that can be redeemed once.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                    <div className="w-full sm:w-44">
+                      <label className="mb-1 block text-xs text-muted-foreground">
+                        Expiry (minutes)
+                      </label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={tokenExpiryMinutes}
+                        onChange={(e) => setTokenExpiryMinutes(e.target.value)}
+                        disabled={tokenLoading}
+                      />
+                    </div>
+
+                    <Button onClick={handleGenerateToken} disabled={tokenLoading}>
+                      {tokenLoading ? "Generating..." : "Generate code"}
+                    </Button>
+                  </div>
+                </div>
+
+                {tokenError && (
+                  <p className="mt-2 text-sm text-destructive">{tokenError}</p>
+                )}
+
+                {generatedToken && (
+                  <div className="mt-3 rounded-md border border-border bg-background p-3">
+                    <p className="text-xs text-muted-foreground">
+                      Copy this now (won’t be shown again):
+                    </p>
+                    <p className="mt-1 break-all font-mono text-sm">
+                      {generatedToken}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex items-center gap-2">
               <input

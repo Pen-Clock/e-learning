@@ -62,3 +62,22 @@ export const userProgress = sqliteTable("user_progress", {
   mcqAnswers: text("mcq_answers", { mode: "json" }),
   codeSubmissions: text("code_submissions", { mode: "json" }),
 });
+
+export const courseAccessTokens = sqliteTable("course_access_tokens", {
+  id: text("id").primaryKey(),
+  courseId: text("course_id")
+    .notNull()
+    .references(() => courses.id, { onDelete: "cascade" }),
+
+  // store token hash (recommended) instead of raw token
+  tokenHash: text("token_hash").notNull(),
+
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+
+  // optional expiry
+  expiresAt: integer("expires_at", { mode: "timestamp" }),
+
+  usedAt: integer("used_at", { mode: "timestamp" }),
+});

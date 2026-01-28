@@ -6,9 +6,11 @@ import {
   coursePages,
   pageSections,
   userProgress,
+  courseAccessTokens,
 } from "./schema";
-import { eq, and, asc } from "drizzle-orm";
-import { generateId } from "../utils";
+import { eq, and, asc, isNull } from "drizzle-orm";
+
+import { generateId, generateOneTimeToken, sha256Hex } from "../utils";
 
 export async function getCourses() {
   noStore();
@@ -191,4 +193,61 @@ export async function saveCodeSubmission(
       codeSubmissions: next,
     });
   }
+}
+
+export async function createCourseAccessToken(courseId: string, expiresAt?: Date | null) {
+  const rawToken = generateOneTimeToken(32);
+  const tokenHash = sha256Hex(rawToken);
+
+  const id = generateId();
+  await db.insert(courseAccessTokens).values({
+    id,
+    courseId,
+    tokenHash,
+    expiresAt: expiresAt ?? null,
+    usedAt: null,
+  });
+
+  return { id, token: rawToken, expiresAt: expiresAt ?? null };
+}
+
+export async function redeemCourseAccessToken(params: {
+  courseId: string;
+  rawToken: string;
+  userId: string;
+}) {
+  const { courseId, rawToken, userId } = params;
+  const tokenHash = sha256Hex(rawToken);
+
+  // Find an unused token for this course
+  const rows = await db
+    .select()
+    .from(courseAccessTokens)
+    .where(
+      and(
+        eq(courseAccessTokens.courseId, courseId),
+        eq(courseAccessTokens.tokenHash, tokenHash),
+        isNull(courseAccessTokens.usedAt),
+      ),
+    )
+    .limit(1);
+
+  const tokenRow = rows[0];
+  if (!tokenRow) return { ok: false as const, reason: "INVALID" as const };
+
+  if (tokenRow.expiresAt && new Date(tokenRow.expiresAt).getTime() < Date.now()) {
+    return { ok: false as const, reason: "EXPIRED" as const };
+  }
+
+  // Mark used (single-use)
+  await db
+    .update(courseAccessTokens)
+    .set({ usedAt: new Date() })
+    .where(eq(courseAccessTokens.id, tokenRow.id));
+
+  // Enroll user
+  const already = await isUserEnrolled(userId, courseId);
+  if (!already) await enrollUser(userId, courseId);
+
+  return { ok: true as const };
 }
